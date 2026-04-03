@@ -243,26 +243,17 @@ def clear_log():
     return jsonify({'success': True, 'message': 'Semua log dihapus'})
 
 # ─────────────────────────────────────────────
-# MAIN
+# MAIN & INISIALISASI (Disiapkan untuk Railway)
 # ─────────────────────────────────────────────
 
-if __name__ == '__main__':
-    init_db()
-    import socket
-    hostname = socket.gethostname()
-    try:
-        local_ip = socket.gethostbyname(hostname)
-    except:
-        local_ip = '127.0.0.1'
+# Inisialisasi DB di luar blok if __name__ agar dieksekusi oleh WSGI server (seperti Gunicorn) di Railway
+init_db()
 
+if __name__ == '__main__':
+    # Membaca port yang diberikan oleh environment Railway, fallback ke 5000 jika dijalankan lokal
+    port = int(os.environ.get("PORT", 5000))
     print("=" * 50)
     print("  SISTEM PAKAR DISTILASI MINYAK KAYU PUTIH")
     print("=" * 50)
-    print(f"  Localhost : http://127.0.0.1:5000")
-    print(f"  LAN       : http://{local_ip}:5000")
-    print(f"  Database  : {DB_PATH} (SQLite)")
-    print("  Mode      : SIMULASI (tanpa sensor fisik)")
-    print("=" * 50)
-
-    app.run(host='0.0.0.0', port=5000, debug=True)
-
+    # Debug wajib False untuk keamanan di server production
+    app.run(host='0.0.0.0', port=port, debug=False)
