@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard Sistem Pakar — Distilasi Minyak Kayu Putih</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:#0d1117;--bg2:#161b22;--bg3:#1c2330;
+    --border:#30363d;--border2:#21262d;
+    --text:#e6edf3;--text2:#8b949e;--text3:#484f58;
+    --green:#3fb950;--green-dim:#1a3a22;
+    --amber:#d29922;--amber-dim:#3a2a0a;
+    --red:#f85149;--red-dim:#3a1a1a;
+    --blue:#58a6ff;--blue-dim:#1a2a3a;
+    --teal:#39d0c4;
+    --mono:'IBM Plex Mono',monospace;
+    --sans:'IBM Plex Sans',sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;min-height:100vh}
+
+  .topbar{background:var(--bg2);border-bottom:1px solid var(--border);padding:0 24px;height:52px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+  .topbar-logo{font-family:var(--mono);font-size:13px;font-weight:500;color:var(--teal);letter-spacing:.04em}
+  .topbar-sep{width:1px;height:20px;background:var(--border);margin:0 12px}
+  .topbar-title{font-size:13px;color:var(--text2)}
+  .topbar-right{display:flex;align-items:center;gap:14px}
+  .live-badge{display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:11px;color:var(--green);background:var(--green-dim);border:1px solid rgba(63,185,80,.3);padding:3px 10px;border-radius:4px}
+  .live-dot{width:6px;height:6px;border-radius:50%;background:var(--green);animation:pulse 1.5s ease-in-out infinite}
+  @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.8)}}
+  .db-badge{font-family:var(--mono);font-size:11px;padding:3px 10px;border-radius:4px;border:1px solid var(--border)}
+  .db-badge.connected{color:var(--green);background:var(--green-dim);border-color:rgba(63,185,80,.3)}
+  .db-badge.disconnected{color:var(--red);background:var(--red-dim);border-color:rgba(248,81,73,.3)}
+  .clock{font-family:var(--mono);font-size:12px;color:var(--text3)}
+
+  .main{padding:20px 24px;max-width:1400px;margin:0 auto}
+
+  /* STATUS BANNER */
+  .status-banner{border:1px solid var(--border);border-radius:8px;padding:14px 20px;display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;transition:all .4s}
+  .status-banner.normal{background:var(--green-dim);border-color:rgba(63,185,80,.4)}
+  .status-banner.anomali{background:var(--amber-dim);border-color:rgba(210,153,34,.4)}
+  .status-banner.kritis{background:var(--red-dim);border-color:rgba(248,81,73,.4)}
+  .banner-status{font-size:15px;font-weight:600;margin-bottom:2px}
+  .banner-status.normal{color:var(--green)}
+  .banner-status.anomali{color:var(--amber)}
+  .banner-status.kritis{color:var(--red)}
+  .banner-desc{font-size:12px;color:var(--text2)}
+  .banner-right{text-align:right}
+  .banner-time{font-family:var(--mono);font-size:11px;color:var(--text3)}
+  .banner-saved{font-family:var(--mono);font-size:10px;margin-top:4px}
+  .banner-saved.ok{color:var(--green)}
+  .banner-saved.err{color:var(--red)}
+
+  /* SENSOR GRID */
+  .sensor-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+  .sensor-card{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:16px;position:relative;overflow:hidden;transition:border-color .3s}
+  .sensor-card.warn{border-color:rgba(210,153,34,.5)}
+  .sensor-card.danger{border-color:rgba(248,81,73,.5)}
+  .sensor-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;transition:background .3s}
+  .sensor-card.ok::before{background:var(--green)}
+  .sensor-card.warn::before{background:var(--amber)}
+  .sensor-card.danger::before{background:var(--red)}
+  .sc-label{font-size:11px;color:var(--text3);font-family:var(--mono);letter-spacing:.05em;text-transform:uppercase;margin-bottom:10px}
+  .sc-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+  .sc-badge{font-size:10px;font-family:var(--mono);padding:2px 7px;border-radius:3px}
+  .sc-badge.ok{background:var(--green-dim);color:var(--green)}
+  .sc-badge.warn{background:var(--amber-dim);color:var(--amber)}
+  .sc-badge.danger{background:var(--red-dim);color:var(--red)}
+  .sc-value{font-family:var(--mono);font-size:28px;font-weight:500;line-height:1}
+  .sc-value.ok{color:var(--text)}
+  .sc-value.warn{color:var(--amber)}
+  .sc-value.danger{color:var(--red)}
+  .sc-unit{font-family:var(--mono);font-size:13px;color:var(--text3);margin-left:4px}
+  .sc-range{font-size:11px;color:var(--text3);margin-top:8px;font-family:var(--mono)}
+  .sc-trend{font-size:11px;color:var(--text2);margin-top:4px}
+  .sparkline{margin-top:10px}
+
+  /* TABS */
+  .tabs{display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:0}
+  .tab{font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:.04em;padding:10px 16px;cursor:pointer;color:var(--text3);border-bottom:2px solid transparent;transition:all .2s}
+  .tab:hover{color:var(--text2)}
+  .tab.active{color:var(--teal);border-bottom-color:var(--teal)}
+  .tab-content{display:none}
+  .tab-content.active{display:block}
+
+  /* GRID */
+  .grid-main{display:grid;grid-template-columns:1fr 1fr 360px;gap:14px;margin-bottom:20px}
+  .panel{background:var(--bg2);border:1px solid var(--border);border-radius:8px;overflow:hidden}
+  .panel-header{padding:12px 16px;border-bottom:1px solid var(--border2);display:flex;align-items:center;justify-content:space-between}
+  .panel-title{font-size:12px;font-weight:500;color:var(--text2);font-family:var(--mono);letter-spacing:.04em;text-transform:uppercase}
+  .panel-body{padding:16px}
+
+  /* FORWARD CHAINING */
+  .fc-item{display:flex;gap:12px;padding:8px 0;border-bottom:1px solid var(--border2);animation:fadeIn .3s ease}
+  .fc-item:last-child{border-bottom:none}
+  @keyframes fadeIn{from{opacity:0;transform:translateX(-6px)}to{opacity:1;transform:none}}
+  .fc-num{width:20px;height:20px;border-radius:3px;font-family:var(--mono);font-size:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px}
+  .fc-num.ok{background:var(--green-dim);color:var(--green)}
+  .fc-num.warn{background:var(--amber-dim);color:var(--amber)}
+  .fc-num.danger{background:var(--red-dim);color:var(--red)}
+  .fc-rule{font-size:11px;font-family:var(--mono);color:var(--text3);margin-bottom:2px}
+  .fc-result{font-size:13px;color:var(--text)}
+  .fc-result span.ok{color:var(--green);font-weight:500}
+  .fc-result span.warn{color:var(--amber);font-weight:500}
+  .fc-result span.danger{color:var(--red);font-weight:500}
+
+  /* REKOMENDASI */
+  .rek-item{padding:10px 14px;border-radius:6px;margin-bottom:8px;border-left:3px solid transparent}
+  .rek-item.ok{background:rgba(63,185,80,.07);border-color:var(--green)}
+  .rek-item.warn{background:rgba(210,153,34,.08);border-color:var(--amber)}
+  .rek-item.danger{background:rgba(248,81,73,.08);border-color:var(--red)}
+  .rek-title{font-weight:500;margin-bottom:3px;font-size:13px}
+  .rek-item.ok .rek-title{color:var(--green)}
+  .rek-item.warn .rek-title{color:var(--amber)}
+  .rek-item.danger .rek-title{color:var(--red)}
+  .rek-desc{color:var(--text2);font-size:12px;line-height:1.5}
+
+  /* NOTIF */
+  .notif-item{display:flex;gap:10px;padding:9px 0;border-bottom:1px solid var(--border2)}
+  .notif-item:last-child{border-bottom:none}
+  .notif-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;margin-top:4px}
+  .notif-dot.warn{background:var(--amber)}
+  .notif-dot.danger{background:var(--red)}
+  .notif-msg{font-size:12px;color:var(--text);line-height:1.5}
+  .notif-time{font-family:var(--mono);font-size:10px;color:var(--text3);margin-top:2px}
+
+  /* LOG TABLE */
+  .log-wrap{overflow-x:auto;max-height:360px;overflow-y:auto}
+  table{width:100%;border-collapse:collapse;font-size:12px}
+  th{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--text3);padding:8px 12px;border-bottom:1px solid var(--border);text-align:left;position:sticky;top:0;background:var(--bg2)}
+  td{padding:7px 12px;border-bottom:1px solid var(--border2);color:var(--text2);font-family:var(--mono)}
+  tr:hover td{background:rgba(255,255,255,.02)}
+  .log-status{display:inline-block;padding:2px 7px;border-radius:3px;font-size:10px}
+  .log-status.normal{background:var(--green-dim);color:var(--green)}
+  .log-status.anomali{background:var(--amber-dim);color:var(--amber)}
+  .log-status.kritis{background:var(--red-dim);color:var(--red)}
+
+  /* STATISTIK */
+  .stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px}
+  .stat-card{background:var(--bg3);border-radius:6px;padding:12px;text-align:center}
+  .stat-val{font-family:var(--mono);font-size:24px;font-weight:500;color:var(--text)}
+  .stat-label{font-size:11px;color:var(--text3);margin-top:4px}
+  .stat-val.normal{color:var(--green)}
+  .stat-val.anomali{color:var(--amber)}
+  .stat-val.kritis{color:var(--red)}
+
+  /* BUTTON */
+  .btn{font-family:var(--mono);font-size:11px;padding:5px 12px;border-radius:4px;border:1px solid var(--border);background:none;color:var(--text2);cursor:pointer;transition:all .2s}
+  .btn:hover{background:var(--bg3);color:var(--text)}
+  .btn.primary{border-color:rgba(57,208,196,.4);color:var(--teal)}
+  .btn.primary:hover{background:rgba(57,208,196,.08)}
+
+  .footer-note{text-align:center;font-family:var(--mono);font-size:11px;color:var(--text3);padding:16px 0 8px;border-top:1px solid var(--border2);margin-top:8px}
+  ::-webkit-scrollbar{width:5px;height:5px}
+  ::-webkit-scrollbar-track{background:transparent}
+  ::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div style="display:flex;align-items:center">
+    <div class="topbar-logo">EXPERT-SYS</div>
+    <div class="topbar-sep"></div>
+    <div class="topbar-title">Sistem Pakar Forward Chaining — Distilasi Minyak Kayu Putih</div>
+  </div>
+  <div class="topbar-right">
+    <div class="db-badge disconnected" id="db-badge">DB: menghubungkan...</div>
+    <div class="live-badge"><div class="live-dot"></div>LIVE</div>
+    <div class="clock" id="clock">--:--:--</div>
+  </div>
+</div>
+
+<div class="main">
+
+  <div style="background:var(--bg2); border:1px solid var(--border); border-radius:8px; padding:12px 20px; margin-bottom:20px; display:flex; align-items:center; justify-content:space-between;">
+    <div style="display:flex; align-items:center; gap:10px;">
+        <span style="font-family:var(--mono); font-size:11px; color:var(--text3); text-transform:uppercase; margin-right:10px;">Panel Simulator:</span>
+        <button class="btn" style="color:var(--green); border-color:rgba(63,185,80,0.4);" onclick="kirimSimulasi('normal')">Kirim Data Normal</button>
+        <button class="btn" style="color:var(--amber); border-color:rgba(210,153,34,0.4);" onclick="kirimSimulasi('anomali')">Kirim Data Anomali</button>
+        <button class="btn" style="color:var(--red); border-color:rgba(248,81,73,0.4);" onclick="kirimSimulasi('kritis')">Kirim Data Kritis</button>
+    </div>
+    <button class="btn" onclick="hapusLog()">Hapus Riwayat</button>
+  </div>
+
+  <div class="status-banner normal" id="status-banner">
+    <div>
+      <div class="banner-status normal" id="banner-status">DISTILASI BERJALAN NORMAL</div>
+      <div class="banner-desc" id="banner-desc">Semua parameter dalam batas ideal</div>
+    </div>
+    <div class="banner-right">
+      <div class="banner-time" id="banner-time">—</div>
+      <div class="banner-saved" id="banner-saved"></div>
+    </div>
+  </div>
+
+  <div class="sensor-grid">
+    <div class="sensor-card ok" id="card-sp">
+      <div class="sc-header"><div class="sc-label">SUHU PEMANAS</div><div class="sc-badge ok" id="badge-sp">NORMAL</div></div>
+      <div><span class="sc-value ok" id="val-sp">—</span><span class="sc-unit">°C</span></div>
+      <div class="sc-range">Ideal: 90 – 105 °C</div>
+      <div class="sc-trend" id="trend-sp"></div>
+      <div class="sparkline"><canvas id="spark-sp" width="200" height="36"></canvas></div>
+    </div>
+    <div class="sensor-card ok" id="card-sc">
+      <div class="sc-header"><div class="sc-label">SUHU PENDINGIN</div><div class="sc-badge ok" id="badge-sc">NORMAL</div></div>
+      <div><span class="sc-value ok" id="val-sc">—</span><span class="sc-unit">°C</span></div>
+      <div class="sc-range">Ideal: 20 – 35 °C</div>
+      <div class="sc-trend" id="trend-sc"></div>
+      <div class="sparkline"><canvas id="spark-sc" width="200" height="36"></canvas></div>
+    </div>
+    <div class="sensor-card ok" id="card-ph">
+      <div class="sc-header"><div class="sc-label">pH HASIL</div><div class="sc-badge ok" id="badge-ph">NORMAL</div></div>
+      <div><span class="sc-value ok" id="val-ph">—</span></div>
+      <div class="sc-range">Ideal: 5.5 – 7.0</div>
+      <div class="sc-trend" id="trend-ph"></div>
+      <div class="sparkline"><canvas id="spark-ph" width="200" height="36"></canvas></div>
+    </div>
+    <div class="sensor-card ok" id="card-tds">
+      <div class="sc-header"><div class="sc-label">TDS HASIL</div><div class="sc-badge ok" id="badge-tds">NORMAL</div></div>
+      <div><span class="sc-value ok" id="val-tds">—</span><span class="sc-unit">ppm</span></div>
+      <div class="sc-range">Ideal: 50 – 300 ppm</div>
+      <div class="sc-trend" id="trend-tds"></div>
+      <div class="sparkline"><canvas id="spark-tds" width="200" height="36"></canvas></div>
+    </div>
+  </div>
+
+  <div class="grid-main">
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">Forward Chaining — Rule Aktif</div>
+        <div id="fc-count" style="font-family:var(--mono);font-size:10px;color:var(--text3)">—</div>
+      </div>
+      <div class="panel-body" style="padding:8px 16px;max-height:300px;overflow-y:auto">
+        <div id="fc-trace"></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">Rekomendasi Tindakan</div>
+        <div id="rek-count" style="font-family:var(--mono);font-size:10px;color:var(--text3)">—</div>
+      </div>
+      <div class="panel-body" style="max-height:300px;overflow-y:auto" id="rek-list"></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">Notifikasi</div>
+        <button class="btn" onclick="clearNotif()">hapus</button>
+      </div>
+      <div class="panel-body" style="padding:8px 16px;max-height:300px;overflow-y:auto" id="notif-box">
+        <div style="color:var(--text3);font-size:12px;text-align:center;padding:20px 0">Belum ada notifikasi</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel" style="margin-bottom:20px">
+    <div class="panel-header">
+      <div class="tabs" style="border:none;margin:0">
+        <div class="tab active" onclick="switchTab('log')">Log Riwayat Sensor</div>
+        <div class="tab" onclick="switchTab('statistik')">Statistik Database</div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn" onclick="refreshLog()">↺ refresh</button>
+      </div>
+    </div>
+
+    <div id="tab-log" class="tab-content active">
+      <div class="log-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th><th>Waktu</th><th>Suhu P/C</th>
+              <th>pH</th><th>TDS</th><th>Status</th><th>Rule Aktif</th>
+            </tr>
+          </thead>
+          <tbody id="log-body">
+            <tr><td colspan="8" style="text-align:center;color:var(--text3);padding:20px">Memuat data dari database...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="tab-statistik" class="tab-content">
+      <div class="panel-body">
+        <div class="stat-grid">
+          <div class="stat-card"><div class="stat-val" id="st-total">—</div><div class="stat-label">Total Log</div></div>
+          <div class="stat-card"><div class="stat-val normal" id="st-normal">—</div><div class="stat-label">Normal</div></div>
+          <div class="stat-card"><div class="stat-val anomali" id="st-anomali">—</div><div class="stat-label">Anomali</div></div>
+          <div class="stat-card"><div class="stat-val kritis" id="st-kritis">—</div><div class="stat-label">Kritis</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer-note">
+    Data tersimpan di SQLite (data_sensor.db) · Backend Flask di localhost:5000 · Terhubung Penuh
+  </div>
+</div>
+
+<script>
+const API = 'http://127.0.0.1:5000/api';
+let dbOk = false;
+
+// ─── BASIS PENGETAHUAN (UI) ──────────────────────────────────────────────────
+const RULES = [
+  {id:'R01',cond:d=>d.sp>=90&&d.sp<=105,param:'sp',status:'ok',label:'Suhu pemanas normal',rek:null},
+  {id:'R02',cond:d=>d.sp<90,param:'sp',status:'warn',label:'Suhu pemanas terlalu rendah',rek:{cls:'warn',title:'Naikkan suhu pemanas',desc:'Di bawah 90°C menyebabkan yield rendah.'}},
+  {id:'R03',cond:d=>d.sp>105&&d.sp<=112,param:'sp',status:'warn',label:'Suhu sedikit tinggi',rek:{cls:'warn',title:'Turunkan suhu pemanas',desc:'Di atas 105°C berisiko degradasi senyawa.'}},
+  {id:'R04',cond:d=>d.sp>112,param:'sp',status:'danger',label:'KRITIS: Suhu sangat tinggi',rek:{cls:'danger',title:'MATIKAN PEMANAS SEGERA',desc:'Melebihi 112°C. Bahaya.'}},
+  {id:'R05',cond:d=>d.sc>=20&&d.sc<=35,param:'sc',status:'ok',label:'Suhu pendingin normal',rek:null},
+  {id:'R06',cond:d=>d.sc<20,param:'sc',status:'warn',label:'Suhu pendingin rendah',rek:{cls:'warn',title:'Kurangi aliran air',desc:'Di bawah 20°C menyebabkan minyak bercampur air.'}},
+  {id:'R07',cond:d=>d.sc>35,param:'sc',status:'danger',label:'KRITIS: Suhu pendingin tinggi',rek:{cls:'danger',title:'Tingkatkan aliran air',desc:'Kondensasi gagal.'}},
+  {id:'R08',cond:d=>d.ph>=5.5&&d.ph<=7.0,param:'ph',status:'ok',label:'pH normal (SNI)',rek:null},
+  {id:'R09',cond:d=>d.ph<5.5,param:'ph',status:'warn',label:'pH terlalu asam',rek:{cls:'warn',title:'Periksa keasaman',desc:'Cek kebersihan tangki.'}},
+  {id:'R10',cond:d=>d.ph>7.0,param:'ph',status:'warn',label:'pH terlalu basa',rek:{cls:'warn',title:'Turunkan pemanas',desc:'Fraksi berat ikut terdestilasi.'}},
+  {id:'R11',cond:d=>d.tds>=50&&d.tds<=300,param:'tds',status:'ok',label:'TDS normal',rek:null},
+  {id:'R12',cond:d=>d.tds<50,param:'tds',status:'warn',label:'TDS rendah',rek:{cls:'warn',title:'Minyak terlalu encer',desc:'Cek bahan baku daun.'}},
+  {id:'R13',cond:d=>d.tds>300&&d.tds<=500,param:'tds',status:'warn',label:'TDS tinggi',rek:{cls:'warn',title:'Periksa kontaminan mineral',desc:'Kualitas air buruk.'}},
+  {id:'R14',cond:d=>d.tds>500,param:'tds',status:'danger',label:'KRITIS: TDS sangat tinggi',rek:{cls:'danger',title:'HENTIKAN PROSES',desc:'Indikasi kontaminasi serius.'}},
+];
+
+// ─── STATE ────────────────────────────────────────────────────────────────────
+let sp=0,sc=0,ph=0,tds=0;
+let prevSp=0,prevSc=0,prevPh=0,prevTds=0;
+const hist={sp:[],sc:[],ph:[],tds:[]};
+const MAX_H=20;
+let prevFired=[];
+const localNotifs=[];
+
+setInterval(()=>{ document.getElementById('clock').textContent=new Date().toLocaleTimeString('id-ID'); },1000);
+
+function switchTab(t){
+  document.querySelectorAll('.tab').forEach(el=>el.classList.toggle('active',el.textContent.toLowerCase().includes(t==='log'?'log':'statistik')));
+  document.getElementById('tab-log').classList.toggle('active',t==='log');
+  document.getElementById('tab-statistik').classList.toggle('active',t==='statistik');
+  if(t==='statistik') loadStatistik();
+}
+
+function drawSpark(id,data,color){
+  const c=document.getElementById(id); if(!c||data.length<2)return;
+  const ctx=c.getContext('2d'),W=c.width,H=c.height; ctx.clearRect(0,0,W,H);
+  const mn=Math.min(...data),mx=Math.max(...data),rng=mx-mn||1;
+  const pts=data.map((v,i)=>({x:(i/(data.length-1))*W,y:H-((v-mn)/rng)*(H-6)-3}));
+  ctx.beginPath();ctx.strokeStyle=color;ctx.lineWidth=1.5;ctx.lineJoin='round';
+  pts.forEach((p,i)=>i===0?ctx.moveTo(p.x,p.y):ctx.lineTo(p.x,p.y)); ctx.stroke();
+  ctx.beginPath(); pts.forEach((p,i)=>i===0?ctx.moveTo(p.x,p.y):ctx.lineTo(p.x,p.y));
+  ctx.lineTo(pts[pts.length-1].x,H);ctx.lineTo(pts[0].x,H);ctx.closePath();
+  ctx.fillStyle=color+'22';ctx.fill();
+}
+function colOf(s){return s==='ok'?'#3fb950':s==='warn'?'#d29922':'#f85149';}
+function paramSt(param,fired){const r=fired.find(f=>f.param===param);return r?r.status:'ok';}
+
+function updCard(id,val,st,disp,prev){
+  document.getElementById('card-'+id).className='sensor-card '+st;
+  const ve=document.getElementById('val-'+id);ve.className='sc-value '+st;ve.textContent=disp;
+  const be=document.getElementById('badge-'+id);be.className='sc-badge '+st;
+  be.textContent=st==='ok'?'NORMAL':st==='warn'?'PERINGATAN':'KRITIS';
+  const d=val-prev,arr=d>0.05?'↑':d<-0.05?'↓':'→';
+  const te=document.getElementById('trend-'+id);
+  te.textContent=arr+' '+(d>=0?'+':'')+d.toFixed(1); te.style.color=colOf(st);
+}
+
+function updBanner(ov,fired){
+  const b=document.getElementById('status-banner');
+  b.className='status-banner '+(ov==='normal'?'normal':ov==='anomali'?'anomali':'kritis');
+  const s=document.getElementById('banner-status');
+  s.className='banner-status '+(ov==='normal'?'normal':ov==='anomali'?'anomali':'kritis');
+  s.textContent=ov==='normal'?'DISTILASI BERJALAN NORMAL':ov==='anomali'?'ANOMALI TERDETEKSI':'KONDISI KRITIS — TINDAKAN SEGERA DIPERLUKAN';
+  const issues=fired.filter(r=>r.status!=='ok');
+  document.getElementById('banner-desc').textContent=issues.length?issues.map(r=>r.label).join(' · '):'Semua parameter dalam batas ideal';
+  document.getElementById('banner-time').textContent='Update: '+new Date().toLocaleTimeString('id-ID');
+}
+
+function updFC(fired){
+  document.getElementById('fc-trace').innerHTML=fired.map(r=>
+    `<div class="fc-item"><div class="fc-num ${r.status}">${r.id}</div><div><div class="fc-rule">IF kondisi_${r.param} → THEN</div><div class="fc-result"><span class="${r.status}">${r.label}</span></div></div></div>`
+  ).join('');
+  document.getElementById('fc-count').textContent=fired.length+' rule aktif';
+}
+
+function updRek(fired){
+  const reks=fired.filter(r=>r.rek).map(r=>r.rek);
+  document.getElementById('rek-list').innerHTML=reks.length?reks.map(r=>`<div class="rek-item ${r.cls}"><div class="rek-title">${r.title}</div><div class="rek-desc">${r.desc}</div></div>`).join('')
+    :`<div class="rek-item ok"><div class="rek-title">Tidak ada tindakan koreksi</div><div class="rek-desc">Semua parameter optimal.</div></div>`;
+  document.getElementById('rek-count').textContent=reks.length?reks.length+' tindakan':'semua normal';
+}
+
+function updNotif(fired){
+  const newOnes=fired.filter(r=>r.status!=='ok'&&!prevFired.find(p=>p.id===r.id));
+  newOnes.forEach(r=>{
+    localNotifs.unshift({st:r.status,msg:r.label,time:new Date().toLocaleTimeString('id-ID')});
+    if(localNotifs.length>30)localNotifs.pop();
+  });
+  document.getElementById('notif-box').innerHTML=localNotifs.length?localNotifs.map(n=>
+    `<div class="notif-item"><div class="notif-dot ${n.st}"></div><div><div class="notif-msg">${n.msg}</div><div class="notif-time">${n.time}</div></div></div>`
+  ).join(''):`<div style="color:var(--text3);font-size:12px;text-align:center;padding:20px 0">Belum ada notifikasi</div>`;
+}
+
+function clearNotif(){localNotifs.length=0;document.getElementById('notif-box').innerHTML='<div style="color:var(--text3);font-size:12px;text-align:center;padding:20px 0">Belum ada notifikasi</div>';}
+
+// ─── AMBIL DATA DARI BACKEND (APP.PY) ──────────────────────────────────────────
+async function fetchLatestData() {
+  if(!dbOk) return;
+  try {
+    const res = await fetch(API+'/latest');
+    const data = await res.json();
+    if(Object.keys(data).length > 0) {
+      sp = data.suhu_prod; sc = data.suhu_cool; ph = data.ph; tds = data.tds;
+      
+      // Update Sejarah Grafik
+      ['sp','sc','ph','tds'].forEach(k=>{hist[k].push(eval(k));if(hist[k].length>MAX_H)hist[k].shift();});
+
+      const fired = RULES.filter(r=>r.cond({sp,sc,ph,tds}));
+      const ov = data.status;
+
+      updCard('sp',sp,paramSt('sp',fired),sp.toFixed(1),prevSp);
+      updCard('sc',sc,paramSt('sc',fired),sc.toFixed(1),prevSc);
+      updCard('ph',ph,paramSt('ph',fired),ph.toFixed(2),prevPh);
+      updCard('tds',tds,paramSt('tds',fired),Math.round(tds),prevTds);
+
+      drawSpark('spark-sp',hist.sp,colOf(paramSt('sp',fired)));
+      drawSpark('spark-sc',hist.sc,colOf(paramSt('sc',fired)));
+      drawSpark('spark-ph',hist.ph,colOf(paramSt('ph',fired)));
+      drawSpark('spark-tds',hist.tds,colOf(paramSt('tds',fired)));
+
+      updBanner(ov,fired); updFC(fired); updRek(fired); updNotif(fired);
+      document.getElementById('banner-saved').textContent='✓ Tersambung ke Python DB';
+      document.getElementById('banner-saved').className='banner-saved ok';
+
+      prevSp=sp; prevSc=sc; prevPh=ph; prevTds=tds; prevFired=fired;
+    }
+  } catch(e) {}
+}
+
+async function refreshLog(){
+  if(!dbOk) return;
+  try{
+    const res=await fetch(API+'/log?limit=20');
+    const logs=await res.json();
+    const tbody=document.getElementById('log-body');
+    if(!logs||!logs.length){ tbody.innerHTML='<tr><td colspan="7" style="text-align:center;padding:16px">Belum ada log</td></tr>'; return; }
+    tbody.innerHTML=logs.map(r=>`
+      <tr>
+        <td>${r.id}</td><td>${r.waktu.split(' ')[1]}</td><td>${r.suhu_prod}° / ${r.suhu_cool}°</td>
+        <td>${r.ph}</td><td>${r.tds}</td>
+        <td><span class="log-status ${r.status}">${r.status}</span></td>
+        <td>${r.rules_aktif||'—'}</td>
+      </tr>`).join('');
+  }catch(e){}
+}
+
+async function loadStatistik(){
+  if(!dbOk)return;
+  try{
+    const res=await fetch(API+'/stats');
+    const d=await res.json();
+    document.getElementById('st-total').textContent=d.total;
+    document.getElementById('st-normal').textContent=d.normal;
+    document.getElementById('st-anomali').textContent=d.anomali;
+    document.getElementById('st-kritis').textContent=d.kritis;
+  }catch(e){}
+}
+
+async function checkDB(){
+  try{
+    await fetch(API+'/stats',{signal:AbortSignal.timeout(3000)});
+    dbOk=true;
+    document.getElementById('db-badge').textContent='DB: TERHUBUNG';
+    document.getElementById('db-badge').className='db-badge connected';
+    fetchLatestData(); refreshLog();
+  }catch(e){
+    dbOk=false;
+    document.getElementById('db-badge').textContent='DB: TERPUTUS';
+    document.getElementById('db-badge').className='db-badge disconnected';
+  }
+}
+
+// ─── FUNGSI TOMBOL SIMULATOR ───────────────────────────────────────────────────
+async function kirimSimulasi(mode) {
+    try {
+        await fetch(API+'/simulate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mode: mode })
+        });
+        // Paksa refresh layar detik itu juga setelah tombol diklik!
+        fetchLatestData(); refreshLog();
+    } catch (e) { alert("Server backend (app.py) belum menyala!"); }
+}
+
+async function hapusLog() {
+    if(confirm("Hapus semua database?")) {
+        await fetch(API+'/clear', { method: 'DELETE' });
+        fetchLatestData(); refreshLog();
+    }
+}
+
+// ─── INIT ─────────────────────────────────────────────────────────────────────
+checkDB();
+setInterval(checkDB, 15000); // Cek koneksi tiap 15 detik
+setInterval(fetchLatestData, 3000); // Polling data terbaru dari app.py tiap 3 detik
+</script>
+</body>
+</html>
