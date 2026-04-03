@@ -296,12 +296,13 @@
   </div>
 
   <div class="footer-note">
-    Data tersimpan di SQLite (data_sensor.db) · Backend Flask di localhost:5000 · Terhubung Penuh
+    Data tersimpan di SQLite (data_sensor.db) · Backend Flask & UI Terhubung via Relative Path
   </div>
 </div>
 
 <script>
-const API = 'http://127.0.0.1:5000/api';
+// --- PERUBAHAN ADA DI SINI: Menggunakan relative path agar dinamis ---
+const API = '/api';
 let dbOk = false;
 
 // ─── BASIS PENGETAHUAN (UI) ──────────────────────────────────────────────────
