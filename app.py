@@ -1,41 +1,58 @@
-# app.py — Lapisan 2: Server Flask + SQLite
+# app.py — Lapisan 2: Server Flask + MySQL (Railway)
 # Sistem Pakar Distilasi Minyak Kayu Putih
-# Mode: Tanpa sensor fisik (simulasi manual + auto-generate)
 
 from flask import Flask, request, jsonify, render_template
-import sqlite3, random, time, os
-from datetime import datetime
+import random, os
+from urllib.parse import urlparse
+import pymysql
+import pymysql.cursors
 
 app = Flask(__name__)
-DB_PATH = 'data_sensor.db'
 
 # ─────────────────────────────────────────────
-# DATABASE SETUP
+# DATABASE SETUP (KONEKSI MYSQL RAILWAY)
 # ─────────────────────────────────────────────
 
-def init_db():
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS log_sensor (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            waktu       TEXT    DEFAULT (datetime('now','localtime')),
-            suhu_prod   REAL,
-            suhu_cool   REAL,
-            ph          REAL,
-            tds         REAL,
-            status      TEXT,
-            rules_aktif TEXT,
-            sumber      TEXT DEFAULT 'manual'
-        )
-    ''')
-    conn.commit()
-    conn.close()
+# Mengambil Link dari Railway (otomatis lewat Environment Variable)
+# Jika tidak ada link (misal dijalankan di laptop tanpa internet), otomatis pakai fallback
+DB_URL = os.environ.get('MYSQL_URL', 'mysql://root:@localhost:3306/railway')
+
+# Membersihkan format link agar mudah dibaca oleh Python
+if DB_URL.startswith('mysql+pymysql://'):
+    DB_URL = DB_URL.replace('mysql+pymysql://', 'mysql://')
+
+parsed_url = urlparse(DB_URL)
 
 def get_db():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
+    """Membuka koneksi ke MySQL"""
+    return pymysql.connect(
+        host=parsed_url.hostname,
+        user=parsed_url.username,
+        password=parsed_url.password,
+        port=parsed_url.port or 3306,
+        database=parsed_url.path[1:], # Menghilangkan garis miring '/'
+        cursorclass=pymysql.cursors.DictCursor, # Agar hasil query berbentuk Dictionary (seperti sqlite3.Row)
+        autocommit=True # Otomatis menyimpan perubahan data
+    )
+
+def init_db():
+    """Membuat tabel jika belum ada (Sintaks disesuaikan untuk MySQL)"""
+    conn = get_db()
+    with conn.cursor() as c:
+        c.execute('''
+            CREATE TABLE IF NOT EXISTS log_sensor (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                waktu DATETIME DEFAULT CURRENT_TIMESTAMP,
+                suhu_prod FLOAT,
+                suhu_cool FLOAT,
+                ph FLOAT,
+                tds FLOAT,
+                status VARCHAR(50),
+                rules_aktif TEXT,
+                sumber VARCHAR(50) DEFAULT 'manual'
+            )
+        ''')
+    conn.close()
 
 # ─────────────────────────────────────────────
 # SISTEM PAKAR — FORWARD CHAINING
@@ -59,10 +76,10 @@ RULES = {
 }
 
 def forward_chaining(d):
-    sp   = float(d.get('suhu_prod', 0))
-    sc   = float(d.get('suhu_cool', 0))
-    ph   = float(d.get('ph', 7))
-    tds  = float(d.get('tds', 0))
+    sp  = float(d.get('suhu_prod', 0))
+    sc  = float(d.get('suhu_cool', 0))
+    ph  = float(d.get('ph', 7))
+    tds = float(d.get('tds', 0))
 
     rules_aktif = []
     status = 'normal'
@@ -121,7 +138,6 @@ def index():
 
 @app.route('/api/sensor', methods=['POST'])
 def terima_sensor():
-    """Terima data dari ESP32 atau form manual"""
     data = request.get_json()
     if not data:
         return jsonify({'error': 'Data tidak valid'}), 400
@@ -130,17 +146,15 @@ def terima_sensor():
     sumber = data.get('sumber', 'manual')
 
     conn = get_db()
-    conn.execute('''
-        INSERT INTO log_sensor (suhu_prod, suhu_cool, ph, tds, status, rules_aktif, sumber)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-    ''', (data.get('suhu_prod'), data.get('suhu_cool'),
-          data.get('ph'), data.get('tds'),
-          status, ','.join(rules), sumber))
-    conn.commit()
-
-    # Ambil ID terakhir
-    row = conn.execute('SELECT last_insert_rowid() as id').fetchone()
-    last_id = row['id']
+    with conn.cursor() as c:
+        # Mengubah '?' pada SQLite menjadi '%s' pada MySQL
+        c.execute('''
+            INSERT INTO log_sensor (suhu_prod, suhu_cool, ph, tds, status, rules_aktif, sumber)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+        ''', (data.get('suhu_prod'), data.get('suhu_cool'),
+              data.get('ph'), data.get('tds'),
+              status, ','.join(rules), sumber))
+        last_id = c.lastrowid # Mengambil ID terakhir di MySQL
     conn.close()
 
     return jsonify({
@@ -153,7 +167,6 @@ def terima_sensor():
 
 @app.route('/api/simulate', methods=['POST'])
 def auto_simulate():
-    """Generate data sensor acak (realistis untuk distilasi kayu putih)"""
     mode = request.json.get('mode', 'normal') if request.json else 'normal'
 
     if mode == 'normal':
@@ -184,13 +197,13 @@ def auto_simulate():
     status, rules, rekomendasi = forward_chaining(data)
 
     conn = get_db()
-    conn.execute('''
-        INSERT INTO log_sensor (suhu_prod, suhu_cool, ph, tds, status, rules_aktif, sumber)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-    ''', (data['suhu_prod'], data['suhu_cool'],
-          data['ph'], data['tds'],
-          status, ','.join(rules), data['sumber']))
-    conn.commit()
+    with conn.cursor() as c:
+        c.execute('''
+            INSERT INTO log_sensor (suhu_prod, suhu_cool, ph, tds, status, rules_aktif, sumber)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+        ''', (data['suhu_prod'], data['suhu_cool'],
+              data['ph'], data['tds'],
+              status, ','.join(rules), data['sumber']))
     conn.close()
 
     return jsonify({
@@ -203,57 +216,69 @@ def auto_simulate():
 
 @app.route('/api/log')
 def get_log():
-    """Ambil data log terbaru"""
     limit = request.args.get('limit', 50, type=int)
     conn = get_db()
-    rows = conn.execute(
-        'SELECT * FROM log_sensor ORDER BY id DESC LIMIT ?', (limit,)
-    ).fetchall()
+    with conn.cursor() as c:
+        c.execute('SELECT * FROM log_sensor ORDER BY id DESC LIMIT %s', (limit,))
+        rows = c.fetchall()
     conn.close()
-    return jsonify([dict(r) for r in rows])
+    
+    # Konversi format waktu MySQL menjadi teks agar bisa dikirim sebagai JSON
+    for r in rows:
+        if r.get('waktu'):
+            r['waktu'] = str(r['waktu'])
+            
+    return jsonify(rows)
 
 @app.route('/api/latest')
 def get_latest():
-    """Ambil 1 data terbaru untuk gauge realtime"""
     conn = get_db()
-    row = conn.execute(
-        'SELECT * FROM log_sensor ORDER BY id DESC LIMIT 1'
-    ).fetchone()
+    with conn.cursor() as c:
+        c.execute('SELECT * FROM log_sensor ORDER BY id DESC LIMIT 1')
+        row = c.fetchone()
     conn.close()
-    return jsonify(dict(row) if row else {})
+    
+    if row and row.get('waktu'):
+        row['waktu'] = str(row['waktu'])
+        
+    return jsonify(row if row else {})
 
 @app.route('/api/stats')
 def get_stats():
-    """Statistik ringkasan"""
     conn = get_db()
-    total   = conn.execute('SELECT COUNT(*) as n FROM log_sensor').fetchone()['n']
-    normal  = conn.execute("SELECT COUNT(*) as n FROM log_sensor WHERE status='normal'").fetchone()['n']
-    anomali = conn.execute("SELECT COUNT(*) as n FROM log_sensor WHERE status='anomali'").fetchone()['n']
-    kritis  = conn.execute("SELECT COUNT(*) as n FROM log_sensor WHERE status='kritis'").fetchone()['n']
+    with conn.cursor() as c:
+        c.execute('SELECT COUNT(*) as n FROM log_sensor')
+        total = c.fetchone()['n']
+        c.execute("SELECT COUNT(*) as n FROM log_sensor WHERE status='normal'")
+        normal = c.fetchone()['n']
+        c.execute("SELECT COUNT(*) as n FROM log_sensor WHERE status='anomali'")
+        anomali = c.fetchone()['n']
+        c.execute("SELECT COUNT(*) as n FROM log_sensor WHERE status='kritis'")
+        kritis = c.fetchone()['n']
     conn.close()
     return jsonify({'total': total, 'normal': normal, 'anomali': anomali, 'kritis': kritis})
 
 @app.route('/api/clear', methods=['DELETE'])
 def clear_log():
-    """Hapus semua log (untuk testing)"""
     conn = get_db()
-    conn.execute('DELETE FROM log_sensor')
-    conn.commit()
+    with conn.cursor() as c:
+        c.execute('DELETE FROM log_sensor')
     conn.close()
     return jsonify({'success': True, 'message': 'Semua log dihapus'})
 
 # ─────────────────────────────────────────────
-# MAIN & INISIALISASI (Disiapkan untuk Railway)
+# MAIN & INISIALISASI
 # ─────────────────────────────────────────────
 
-# Inisialisasi DB di luar blok if __name__ agar dieksekusi oleh WSGI server (seperti Gunicorn) di Railway
-init_db()
+# Eksekusi pembuatan tabel MySQL saat aplikasi pertama kali menyala di Railway
+try:
+    init_db()
+except Exception as e:
+    print(f"Gagal koneksi ke database: {e}")
 
 if __name__ == '__main__':
-    # Membaca port yang diberikan oleh environment Railway, fallback ke 5000 jika dijalankan lokal
     port = int(os.environ.get("PORT", 5000))
     print("=" * 50)
-    print("  SISTEM PAKAR DISTILASI MINYAK KAYU PUTIH")
+    print("  SISTEM PAKAR DISTILASI MINYAK KAYU PUTIH (MYSQL)")
     print("=" * 50)
-    # Debug wajib False untuk keamanan di server production
     app.run(host='0.0.0.0', port=port, debug=False)
